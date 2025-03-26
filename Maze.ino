@@ -22,6 +22,7 @@
 #define sensor_front 19
 #define sensor_right 22
 
+#define auto_count_mode 1
 
 
 #include "BluetoothSerial.h"
@@ -132,7 +133,7 @@ PIController turn_pid = PIController(3, 0.3);
 
 long encoderCount = 0; 
 void IRAM_ATTR encoderISR() {    // ISR (Interrupt Service Routine)
-    if(!digitalRead(encoder_B))  encoderCount++;
+    if(!digitalRead(encoder_B)) encoderCount++;
     else                        encoderCount--;
 }
 
@@ -228,13 +229,31 @@ void stop_move(){
     right_speed(0);
 }
 
-
+#define safe_distance 15
 void turn_forward(int value=25){
     forward_pid.reset();
     long next_checkpoint = encoderCount + plush_per_cm*value;
+    bool stt_left = !digitalRead(sensor_left);
+    bool stt_right = !digitalRead(sensor_right);
     while(encoderCount < next_checkpoint){
         int direction = get_direction();
         if(direction != 0xFFF){
+            // Auto count if use safe_distance_mode to avoid move to far from center
+            if(safe_distance_mode){
+                if(stt_left){
+                    if(digitalRead(sensor_left)){
+                        stt_left = false;
+                        next_checkpoint = max(next_checkpoint, encoderCount+safe_distance*plush_per_cm);
+                    }
+                }
+                if(stt_right){
+                    if(digitalRead(sensor_right)){
+                        stt_right = false;
+                        next_checkpoint = max(next_checkpoint, encoderCount+safe_distance*plush_per_cm);
+                    }
+                }
+            }
+
             if(global_dir > 1350 && direction < -450)       direction += 3600;
             else if(global_dir > 450 && direction < -1350)  direction += 3600;
 
