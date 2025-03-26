@@ -1,6 +1,10 @@
-// #include "OTA_utils.h"
-
 #define led_blink 26
+
+// 30128 plushs for 133cm
+// 226 plush/cm => 1132 plush for 5cm
+#define plush_per_cm 182
+#define encoder_A 34
+#define encoder_B 35
 
 #define left_A 33
 #define left_B 25
@@ -14,8 +18,16 @@
 #define TXD2 17   // Example pin for UART TX
 #define PACKET_LENGTH 13
 
+#define sensor_left 26
+#define sensor_front 19
+#define sensor_right 22
+
+
+
 #include "BluetoothSerial.h"
 BluetoothSerial SerialBT;
+
+int global_dir = 0;
 
 void left_speed(int val){
     if(val==0){
@@ -69,6 +81,12 @@ void move_forward(int val){
 }
 
 
+void rotate_CCW(int val){
+    left_speed(-val);
+    right_speed(val);
+}
+
+
 class PIController {
   public:
     PIController(float kp, float ki) {
@@ -83,6 +101,11 @@ class PIController {
     void setOutputLimits(float minVal, float maxVal) {
         outputMin = minVal;
         outputMax = maxVal;
+    }
+
+    void reset(){
+        prevError = 0;
+        integral = 0;
     }
 
     float compute(float setpoint, float measured) {
@@ -103,12 +126,21 @@ class PIController {
 };
 
 
-PIController forward_pid = PIController(2, 0.1);
+PIController forward_pid = PIController(2, 0.2);
+PIController turn_pid = PIController(3, 0.3);
+
+
+long encoderCount = 0; 
+void IRAM_ATTR encoderISR() {    // ISR (Interrupt Service Routine)
+    if(!digitalRead(encoder_B))  encoderCount++;
+    else                        encoderCount--;
+}
 
 
 void setup() {
     Serial.begin(115200);
     Serial2.begin(115200, SERIAL_8N1, RXD2, TXD2);  // Serial2 for UART input
+    Serial2.println("AT+RST");
     
     Serial.println("ESP32 UART listening...");
     SerialBT.begin("Maze"); // Set the Bluetooth device name
@@ -122,13 +154,25 @@ void setup() {
     pinMode(right_B, OUTPUT);
     pinMode(right_E, OUTPUT);
 
-    // START_OTA_MODE();
+    pinMode(sensor_left, INPUT_PULLUP);
+    pinMode(sensor_front, INPUT_PULLUP);
+    pinMode(sensor_right, INPUT_PULLUP);
+
+
+    pinMode(encoder_A, INPUT_PULLUP);
+    pinMode(encoder_B, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(encoder_A), encoderISR, RISING); 
+
+    turn_pid.setOutputLimits(-255, 255);
+}
+
+void read_sensor(){
+    Serial.print(digitalRead(sensor_left));
+    Serial.print(digitalRead(sensor_front));
+    Serial.println(digitalRead(sensor_right));
 }
 
 void loop() {
-    // server.handleClient();
-    // ElegantOTA.loop();
-
     // Check for serial commands
     if (Serial.available()) {
         String command = Serial.readStringUntil('\n');
@@ -143,6 +187,9 @@ void loop() {
     int direction = get_direction();
     if(direction != 0xFFF){
         Serial.println(direction);
+        read_sensor();
+        Serial.println(encoderCount);
+        Serial.println(global_dir);
     }
 }
 
@@ -182,14 +229,23 @@ void stop_move(){
 }
 
 
-void test_forward(){
-    long time_out = millis() + 10000;
-    while(millis() < time_out){
+void turn_forward(int value=25){
+    forward_pid.reset();
+    long next_checkpoint = encoderCount + plush_per_cm*value;
+    while(encoderCount < next_checkpoint){
         int direction = get_direction();
         if(direction != 0xFFF){
-            int forward_value = forward_pid.compute(0, direction);
+            if(global_dir > 1350 && direction < -450)       direction += 3600;
+            else if(global_dir > 450 && direction < -1350)  direction += 3600;
+
+            if(global_dir < -450 && direction > 450)
+                direction -= 3600;
+
+            int forward_value = forward_pid.compute(global_dir, direction);
             move_forward(forward_value);
 
+            Serial.print("target: ");
+            Serial.print(global_dir);
             Serial.print("direction: ");
             Serial.print(direction);
             Serial.print(", forward_value: ");
@@ -198,6 +254,70 @@ void test_forward(){
     }
 }
 
+
+void turn_CCW(int delta){
+    Serial.println("TURN CCW");
+    global_dir = (global_dir+3600)%3600;
+    global_dir += delta;
+    if(global_dir > 2250)   global_dir -= 3600;
+
+    turn_pid.reset();
+    while(true){
+        int direction = get_direction();
+        if(direction != 0xFFF){
+            if(abs(global_dir-direction)%3600 < 50) break;
+
+            if(global_dir > 1350 && direction < -450)       direction += 3600;
+            else if(global_dir > 450 && direction < -1350)  direction += 3600;
+
+            if(global_dir < -450 && direction > 450)
+                direction -= 3600;
+
+            int turn_value = turn_pid.compute(global_dir, direction);
+            rotate_CCW(turn_value);
+
+            Serial.print("target: ");
+            Serial.print(global_dir);
+            Serial.print("direction: ");
+            Serial.print(direction);
+            Serial.print(", turn_value: ");
+            Serial.println(turn_value);  // println here prints both values and ends the line
+        }
+    }
+}
+
+
+void left_wall_following(){
+    if(digitalRead(sensor_left)){
+        turn_CCW(900);
+    }else if(digitalRead(sensor_front)){
+        // Forward
+    }else if(digitalRead(sensor_right)){
+        turn_CCW(-900);
+    }else{
+        turn_CCW(1800);
+    }
+
+    stop_move();
+    turn_forward(30);
+    stop_move();
+}
+
+void right_wall_following(){
+    if(digitalRead(sensor_right)){
+        turn_CCW(-900);
+    }else if(digitalRead(sensor_front)){
+        // Just forward
+    }else if(digitalRead(sensor_left)){
+        turn_CCW(900);
+    }else{
+        turn_CCW(1800);
+    }
+
+    stop_move();
+    turn_forward(30);
+    stop_move();
+}
 
 void processSerialCommand(String command) {
     Serial.println(command);
@@ -208,25 +328,33 @@ void processSerialCommand(String command) {
         if(direction == 0){
             stop_move();
         }else if(direction == 1){
-            test_forward();
-            stop_move();
-            // left_speed(255);
-            // right_speed(255);
+            // turn_forward();
+            // stop_move();
         }else if(direction == 2){
-            left_speed(-255);
-            right_speed(-255);
+            turn_CCW(1800);
+            stop_move();
         }else if(direction == 3){
-            left_speed(-255);
-            right_speed(255);
+            turn_CCW(900);
+            stop_move();
         }else if(direction == 4){
-            left_speed(255);
-            right_speed(-255);
-        }else if(direction == 5){
-            left_speed(0);
-            right_speed(255);
-        }else if(direction == 6){
-            left_speed(255);
-            right_speed(0);
+            turn_CCW(-900);
+            stop_move();
+        }
+
+        if(direction != 0){
+            turn_forward(30);
+            stop_move();
+        }
+    }
+
+
+    if (command.startsWith("C")) {
+        int direction = command.substring(1).toInt();
+        if(direction == 1){
+            for(int i=0; i<16; i++) left_wall_following();
+        }
+        if(direction == 2){
+            for(int i=0; i<16; i++) right_wall_following();
         }
     }
 }
