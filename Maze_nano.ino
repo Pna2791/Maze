@@ -88,7 +88,7 @@ void test_rotate(int delta){
 }
 
 
-void turn_forward(int value=25){
+void turn_forward(int value=25, int n_step=1){
     forward_pid.reset();
     long next_checkpoint = encoderCount + plush_per_cm*value;
     bool stt_left = !is_left_empty();   // Left have wall
@@ -133,10 +133,10 @@ void turn_forward(int value=25){
         }
     }
 
-    if(global_dir_index == 0)   current_y--;
-    if(global_dir_index == 1)   current_x--;
-    if(global_dir_index == 2)   current_y++;
-    if(global_dir_index == 3 || global_dir_index == -1)   current_x++;
+    if(global_dir_index == 0)   current_y -= n_step;
+    if(global_dir_index == 1)   current_x -= n_step;
+    if(global_dir_index == 2)   current_y += n_step;
+    if(global_dir_index == 3 || global_dir_index == -1)   current_x += n_step;
 
     // Adjust direction
     global_dir = global_dir+delta_dir;
@@ -352,7 +352,7 @@ void tracing_menu(){
 }
 
 
-void run_traced(int dir){
+void run_traced(int dir, int n_step=1){
     int deltal = int(4 + dir-global_dir_index)%4;
     global_dir_index = dir;
     show_step_dir();
@@ -368,9 +368,9 @@ void run_traced(int dir){
         turn_CCW(1800);
     }
     stop_move();
-    step_count++;
+    step_count += n_step;
 
-    turn_forward(cell_size);
+    turn_forward(cell_size*n_step, n_step);
     stop_move();
 }
 
@@ -391,12 +391,17 @@ void running_menu(){
             if(read_from_eeprom){
                 int dir = my_mazer.load_direction(step_count);
                 int pos = my_mazer.load_position(step_count);
+                int n_step = 1;
                 if(dir == 0 && pos == 0 ){
                     read_from_eeprom = false;
                     left_wall_following();
                 }else{
+                    for(int i=1; i<20; i++){
+                        if(dir == my_mazer.load_direction(step_count+i))    n_step = i+1;
+                        else                                                break;
+                    }
                     // run by direction.
-                    run_traced(dir);
+                    run_traced(dir, n_step);
                 }
             }else
                 left_wall_following();
@@ -415,13 +420,18 @@ void running_menu(){
             if(read_from_eeprom){
                 int dir = my_mazer.load_direction(step_count);
                 int pos = my_mazer.load_position(step_count);
+                int n_step = 1;
 
                 if(dir == 0 && pos == 0 ){
                     read_from_eeprom = false;
                     right_wall_following();
                 }else{
+                    for(int i=1; i<20; i++){
+                        if(dir == my_mazer.load_direction(step_count+i))    n_step = i+1;
+                        else                                                break;
+                    }
                     // run by direction.
-                    run_traced(dir);
+                    run_traced(dir, n_step);
                 }
             }else
                 right_wall_following();

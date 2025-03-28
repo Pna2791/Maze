@@ -35,7 +35,6 @@ void setup_button(){
 #define debounce_time 300
 
 
-
 byte start_x = 11;
 byte start_y = 14;
 byte goal_x = 11;
@@ -50,40 +49,15 @@ void load_start_goal(){
 }
 
 
-
 #define ENCODER_OFFSET  5
 #define encoder_A       2  // Must be an interrupt-capable pin
 #define encoder_B       3  // Must also be an interrupt-capable pin
 
 long encoderCount = 0;
-void encoderISR_A() {
-    if (digitalRead(encoder_A) == digitalRead(encoder_B)) {
-        encoderCount++;  // Clockwise
-    } else {
-        encoderCount--;  // Counterclockwise
-    }
-}
-
-void encoderISR_B() {
-    if (digitalRead(encoder_A) != digitalRead(encoder_B)) {
-        encoderCount++;  // Clockwise
-    } else {
-        encoderCount--;  // Counterclockwise
-    }
-}
-
-void encoderISR(){
-    encoderCount++;
-}
 
 void setup_encoder(){
     pinMode(encoder_A, INPUT_PULLUP);
     pinMode(encoder_B, INPUT_PULLUP);
-
-    // attachInterrupt(digitalPinToInterrupt(encoder_B), encoderISR, RISING);
-
-    // attachInterrupt(digitalPinToInterrupt(encoder_A), encoderISR_A, CHANGE);
-    // attachInterrupt(digitalPinToInterrupt(encoder_B), encoderISR_B, CHANGE);
 
     // Configure Timer2 for 1ms interrupt
     cli(); // Disable interrupts
