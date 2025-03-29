@@ -18,7 +18,6 @@
 LiquidCrystal_I2C lcd(0x27, 16, 2);  
 
 
-byte menu_mode = 0;
 int global_dir = 0;
 int global_dir_index = 0;
 PDController forward_pid    = PDController(1, 0.1, FW_SPEED/2);
@@ -28,6 +27,7 @@ Mazer my_mazer = Mazer(N_ROWS, N_COLS);
 int current_x = 0;
 int current_y = 0;
 int step_count = 0;
+
 
 void setup() {
     Serial.begin(115200);
@@ -91,15 +91,21 @@ void test_rotate(int delta){
 void turn_forward(int value=25, int n_step=1){
     forward_pid.reset();
     long next_checkpoint = encoderCount + plush_per_cm*value;
-    bool stt_left = !is_left_empty();   // Left have wall
-    bool stt_right = !is_right_empty(); // Right have wall
+    bool stt_left = 0;   // Left have wall
+    bool stt_right = 0; // Right have wall
     int delta_dir   = 0;
+    bool set_xxx = true;
 
     while(long(encoderCount+ENCODER_OFFSET) < next_checkpoint){
         int direction = get_direction();
         if(direction != 0xFFF){
             // Auto count if use SAFE_DISTANCE_MODE to avoid move to far from center
             if(SAFE_DISTANCE_MODE){
+                if(set_xxx && encoderCount > long(next_checkpoint - cell_size*plush_per_cm)){
+                    stt_left = !is_left_empty();   // Left have wall
+                    stt_right = !is_right_empty(); // Right have wall
+                    set_xxx = false;
+                }
                 if(stt_left){
                     if(is_left_empty()){
                         stt_left = false;
@@ -227,48 +233,119 @@ void right_wall_following(){
 }
 
 
+void show_checkpoint(){
+    if(is_left_mode())  lcd.print(F("LEFT | from ")); 
+    else                lcd.print(F("RIGHT | from ")); 
+
+    if(menu_mode == LEFT_RUN_0_MODE || menu_mode == RIGHT_RUN_0_MODE){
+        lcd.print(F("0"));
+
+        lcd.setCursor(11, 1);
+        lcd.print(start_x);
+        lcd.print(F(" "));
+        lcd.print(start_y);
+    }
+    if(menu_mode == LEFT_RUN_1_MODE || menu_mode == RIGHT_RUN_1_MODE){
+        Serial.print(F("LONGEST STEP :"));
+        Serial.println(longest_step);
+        Serial.print(F("locked_mode :"));
+        Serial.println(locked_mode);
+
+        lcd.print(-CHECKPOINT_1);
+
+        int longest_pos = 0;
+        if(locked_mode){
+            longest_pos = my_mazer.load_position(max(longest_step-CHECKPOINT_1, 0));
+        }else{
+            int longest_traced_step = my_mazer.get_longest_step();
+            Serial.print(F("longest_traced_step :"));
+            Serial.println(longest_traced_step);
+            if(longest_traced_step < CHECKPOINT_1){
+                lcd.setCursor(11, 1);
+                lcd.print(start_x);
+                lcd.print(F(" "));
+                lcd.print(start_y);
+                return;
+            }
+            longest_pos = my_mazer.load_position(longest_traced_step-CHECKPOINT_1);
+        }
+
+        lcd.setCursor(11, 1);
+        lcd.print(longest_pos%N_COLS);
+        lcd.print(F(" "));
+        lcd.print(longest_pos/N_COLS);
+    }
+    if(menu_mode == LEFT_RUN_2_MODE || menu_mode == RIGHT_RUN_2_MODE){
+        lcd.print(-CHECKPOINT_2);
+
+        int longest_pos = 0;
+        if(locked_mode){
+            longest_pos = my_mazer.load_position(max(longest_step-CHECKPOINT_2, 0));
+        }else{
+            int longest_traced_step = my_mazer.get_longest_step();
+            if(longest_traced_step < CHECKPOINT_2){
+                lcd.setCursor(11, 1);
+                lcd.print(start_x);
+                lcd.print(F(" "));
+                lcd.print(start_y);
+                return;
+            }
+            longest_pos = my_mazer.load_position(longest_traced_step-CHECKPOINT_2);
+        }
+
+        lcd.setCursor(11, 1);
+        lcd.print(longest_pos%N_COLS);
+        lcd.print(F(" "));
+        lcd.print(longest_pos/N_COLS);
+    }
+}
+
+
 void show_menu(){
     lcd.clear();
-    menu_mode = menu_mode % n_modes;
+    menu_mode = menu_mode % N_MODES;
 
     switch (menu_mode) {
-        case 0:
+        case LEFT_TRACE_MODE:
             lcd.print(F("left | trace")); 
             break;
-        case 1:
-            lcd.print(F("left | run")); 
-            break;
-        case 2:
+        case RIGHT_TRACE_MODE:
             lcd.print(F("right | trace")); 
             break;
-        case 3:
-            lcd.print(F("right | run")); 
-            break;
-        case 4:
+        case TEST_LINE_MODE:
             lcd.print(F("test line")); 
             break;
-        case 5:
+        case RESET_IMU_MODE:
             lcd.print(F("Reset direction"));
             break;
-        case 6:
-            lcd.print(F("=> start x: ")); lcd.print(start_x);
+
+        case SET_START_X:
+            lcd.print(F("=> START X: ")); lcd.print(start_x);
             lcd.setCursor(0, 1);
-            lcd.print(F("   start y: ")); lcd.print(start_y);
+            lcd.print(F("   START Y: ")); lcd.print(start_y);
             break;
-        case 7:
-            lcd.print(F("   start x: ")); lcd.print(start_x);
+        case SET_START_Y:
+            lcd.print(F("   START X: ")); lcd.print(start_x);
             lcd.setCursor(0, 1);
-            lcd.print(F("=> start y: ")); lcd.print(start_y);
+            lcd.print(F("=> START Y: ")); lcd.print(start_y);
             break;
-        case 8:
-            lcd.print(F("=> goal x: ")); lcd.print(goal_x);
+        case SET_GOAL_X:
+            lcd.print(F("=> GOAL X: ")); lcd.print(goal_x);
             lcd.setCursor(0, 1);
-            lcd.print(F("   goal y: ")); lcd.print(goal_y);
+            lcd.print(F("   GOAL Y: ")); lcd.print(goal_y);
             break;
-        case 9:
-            lcd.print(F("   goal x: ")); lcd.print(goal_x);
+        case SET_GOAL_Y:
+            lcd.print(F("   GOAL X: ")); lcd.print(goal_x);
             lcd.setCursor(0, 1);
-            lcd.print(F("=> goal y: ")); lcd.print(goal_y);
+            lcd.print(F("=> GOAL Y: ")); lcd.print(goal_y);
+            break;
+        case SET_LOCK_MODE:
+            if(locked_mode) lcd.print(F("READ MODE"));
+            else            lcd.print(F("WRITE MODE"));
+            break;
+
+        default:
+            show_checkpoint();
             break;
     }
     delay(debounce_time);
@@ -276,22 +353,23 @@ void show_menu(){
 
 
 void set_start_end_point(){
-    if(menu_mode == 6){
+    if(menu_mode == SET_START_X){
         start_x++;
         if(start_x > N_COLS)    start_x = 1;
         EEPROM.update(EEPROM_START_X, start_x);
     }  
-    if(menu_mode == 7){
+    if(menu_mode == SET_START_Y){
         start_y++;
         if(start_y > N_ROWS)    start_y = 1;
         EEPROM.update(EEPROM_START_Y, start_y);
     }  
-    if(menu_mode == 8){
+
+    if(menu_mode == SET_GOAL_X){
         goal_x++;
         if(goal_x > N_COLS)    goal_x = 1;
         EEPROM.update(EEPROM_GOAL_X,  goal_x);
     }  
-    if(menu_mode == 9){
+    if(menu_mode == SET_GOAL_Y){
         goal_y++;
         if(goal_y > N_ROWS)    goal_y = 1;
         EEPROM.update(EEPROM_GOAL_Y,  goal_y);
@@ -300,10 +378,13 @@ void set_start_end_point(){
 
 
 void test_menu(){
-    if(menu_mode == 5){
+    if(menu_mode == RESET_IMU_MODE){
+        Serial.println("AT+RST");
+        delay(1000);
         Serial.println("AT+RST");
     }
-    if(menu_mode == 4){
+
+    if(menu_mode == TEST_LINE_MODE){
         delay(2000);
         // test_forward();
         // test_rotate(1800);
@@ -316,39 +397,42 @@ void test_menu(){
 
 
 void tracing_menu(){
+    if(locked_mode){
+        lcd.setCursor(0, 1);
+        lcd.print(F("READ ONLY "));
+        delay(1000);
+        return;
+    }
+
     global_dir = 0;
     global_dir_index = 0;
     current_x = start_x;
     current_y = start_y;
     step_count = 0;
 
-    if(menu_mode == 0){
-        delay(1000);
-        long time_out = millis() + 300000;
+    delay(1000);
+    long time_out = millis() + 300000;
 
-        while(true){
-            left_wall_following();
-            if((millis() > time_out) || (current_x==goal_x && current_y==goal_y)){
-                my_mazer.save_step(0, 0, step_count);
-                break;
-            }
-        }
-        stop_move();
-    }
-    if(menu_mode == 2){
-        delay(1000);
-        long time_out = millis() + 300000;
+    while(true){
+        if(is_left_mode())  left_wall_following();
+        else                right_wall_following();
+        if(DEBUG_MODE)  delay(2000);
 
-        while(true){
-            right_wall_following();
-            if(DEBUG_MODE)  delay(2000);
-            if((millis() > time_out) || (current_x==goal_x && current_y==goal_y)){
-                my_mazer.save_step(0, 0, step_count);
-                break;
-            }
+        if(current_x==goal_x && current_y==goal_y){
+            // my_mazer.add_step(global_dir_index, current_x, current_y, step_count);
+            longest_step = 0;
+            update_longest_step();
+
+            locked_mode = true;
+            update_locked_mode();
+            break;
         }
-        stop_move();
+
+        if(millis() > time_out){
+            break;
+        }
     }
+    stop_move();
 }
 
 
@@ -368,82 +452,98 @@ void run_traced(int dir, int n_step=1){
         turn_CCW(1800);
     }
     stop_move();
-    step_count += n_step;
 
     turn_forward(cell_size*n_step, n_step);
+    step_count += n_step;
     stop_move();
+}
+
+
+bool is_left_mode(){
+    if(menu_mode == LEFT_RUN_0_MODE)    return true;
+    if(menu_mode == LEFT_RUN_1_MODE)    return true;
+    if(menu_mode == LEFT_RUN_2_MODE)    return true;
+    if(menu_mode == LEFT_TRACE_MODE)    return true;
+
+    return false;
 }
 
 
 void running_menu(){
     global_dir = 0;
     global_dir_index = 0;
+
     current_x = start_x;
     current_y = start_y;
     step_count = 0;
 
+    if(menu_mode == LEFT_RUN_1_MODE || menu_mode == RIGHT_RUN_1_MODE){
+        lcd.print(-CHECKPOINT_1);
+        step_count = max(longest_step-CHECKPOINT_1, 0);
+        int longest_pos = my_mazer.load_position(step_count);
+        if(longest_step == my_mazer.get_longest_step()){
+            my_mazer.save_step(0, 0, step_count+1);
+        }
+        current_x = longest_pos%N_COLS;
+        current_y = longest_pos/N_COLS;
+
+        lcd.setCursor(11, 1);
+        lcd.print(current_x);
+        lcd.print(F(" "));
+        lcd.print(current_y);
+    }
+
+    if(menu_mode == LEFT_RUN_2_MODE || menu_mode == RIGHT_RUN_2_MODE){
+        lcd.print(-CHECKPOINT_2);
+        step_count = max(longest_step-CHECKPOINT_2, 0);
+        int longest_pos = my_mazer.load_position(step_count);
+        if(longest_step == my_mazer.get_longest_step()){
+            my_mazer.save_step(0, 0, step_count+1);
+        }
+        current_x = longest_pos%N_COLS;
+        current_y = longest_pos/N_COLS;
+
+        lcd.setCursor(11, 1);
+        lcd.print(current_x);
+        lcd.print(F(" "));
+        lcd.print(current_y);
+    }
+
+
     bool read_from_eeprom = 1;
-    if(menu_mode == 1){
-        delay(1000);
-        long time_out = millis() + 300000;
+    delay(1000);
+    long time_out = millis() + 300000;
 
-        while(true){
-            if(read_from_eeprom){
-                int dir = my_mazer.load_direction(step_count);
-                int pos = my_mazer.load_position(step_count);
-                int n_step = 1;
-                if(dir == 0 && pos == 0 ){
-                    read_from_eeprom = false;
-                    left_wall_following();
-                }else{
-                    for(int i=1; i<20; i++){
-                        if(dir == my_mazer.load_direction(step_count+i))    n_step = i+1;
-                        else                                                break;
-                    }
-                    // run by direction.
-                    run_traced(dir, n_step);
-                }
-            }else
-                left_wall_following();
-            if((millis() > time_out) || (current_x==goal_x && current_y==goal_y)){
-                my_mazer.save_step(0, 0, step_count);
-                break;
-            }
+    while(true){
+        if((millis() > time_out) || (current_x==goal_x && current_y==goal_y)){
+            // my_mazer.save_step(0, 0, step_count);
+            break;
         }
-        stop_move();
-    }
-    if(menu_mode == 3){
-        delay(1000);
-        long time_out = millis() + 300000;
-
-        while(true){
-            if(read_from_eeprom){
-                int dir = my_mazer.load_direction(step_count);
-                int pos = my_mazer.load_position(step_count);
-                int n_step = 1;
-
-                if(dir == 0 && pos == 0 ){
-                    read_from_eeprom = false;
-                    right_wall_following();
-                }else{
-                    for(int i=1; i<20; i++){
-                        if(dir == my_mazer.load_direction(step_count+i))    n_step = i+1;
-                        else                                                break;
-                    }
-                    // run by direction.
-                    run_traced(dir, n_step);
+        if(read_from_eeprom){
+            int dir = my_mazer.load_direction(step_count);
+            int pos = my_mazer.load_position(step_count);
+            int n_step = 1;
+            if(pos == 0 && dir == 0){
+                read_from_eeprom = false;
+                if(is_left_mode() ) left_wall_following();
+                else                right_wall_following();
+            }else{
+                for(int i=1; i<20; i++){
+                    if(dir == my_mazer.load_direction(step_count+i))    n_step = i+1;
+                    else                                                break;
                 }
-            }else
-                right_wall_following();
-            if((millis() > time_out) || (current_x==goal_x && current_y==goal_y)){
-                my_mazer.save_step(0, 0, step_count);
-                break;
+                // run by direction.
+                run_traced(dir, n_step);
             }
-            if(DEBUG_MODE)  delay(5000);
+        }else{
+            if(is_left_mode())  left_wall_following();
+            else                right_wall_following();
         }
-        stop_move();
-    }
 
+        longest_step = step_count;
+        update_longest_step();
+    }
+    stop_move();
 }
 
 
@@ -453,14 +553,26 @@ void handle_button(){
         show_menu();
     }
     if(digitalRead(btt_bot)){
-        menu_mode--;
+        menu_mode = (menu_mode == 0) ? RESET_IMU_MODE : menu_mode - 1;
         show_menu();
     }
     if(digitalRead(btt_ent)){
-        set_start_end_point();
-        test_menu();
-        tracing_menu();
-        running_menu();
+        if(SET_START_X <= menu_mode && menu_mode <= SET_GOAL_Y)
+            set_start_end_point();
+
+        if(menu_mode == RESET_IMU_MODE || menu_mode == TEST_LINE_MODE)
+            test_menu();
+
+        if(menu_mode == LEFT_TRACE_MODE || menu_mode == RIGHT_TRACE_MODE)
+            tracing_menu();
+
+        if(LEFT_RUN_0_MODE <= menu_mode && menu_mode < LEFT_TRACE_MODE)
+            running_menu();
+        
+        if(menu_mode == SET_LOCK_MODE){
+            locked_mode = !locked_mode;
+            update_locked_mode();
+        }
         
         show_menu();
     }
@@ -472,12 +584,12 @@ void loop() {
 
     int direction = get_direction();
     if(direction != 0xFFF){
-        if(menu_mode <= 5){
+        if(menu_mode <= RESET_IMU_MODE){
             lcd.setCursor(0, 1);
             lcd.print(String(direction));
             lcd.print(F(" "));
         }
-        if(menu_mode == 4){
+        if(menu_mode == TEST_LINE_MODE){
             // lcd.setCursor(0, 1);
             lcd.print(String(encoderCount));
             lcd.print(F(" "));
@@ -494,5 +606,5 @@ void loop() {
         //     lcd.print(F(" "));
         // }
     }
-    read_sensor();
+    // read_sensor();
 }

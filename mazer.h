@@ -12,6 +12,7 @@ class Mazer {
         Mazer(int n_rows = 14, int n_cols = 22) {
             this->n_rows = n_rows;
             this->n_cols = n_cols;
+            // max_step = get_longest_step();
         }
         
         int load_direction(int step){
@@ -20,6 +21,7 @@ class Mazer {
         }
 
         int load_position(int step){
+            // if(step > max_step)    return 0;
             int eepromIndex = eeprom_offset + step * 2;
             byte highByte = EEPROM.read(eepromIndex);
             byte lowByte = EEPROM.read(eepromIndex + 1);
@@ -52,10 +54,30 @@ class Mazer {
             save_step(dir, pos, step);
             return step;
         }
+
+        int get_longest_step(){
+            for(int i=0; i<512; i++){
+                if(load_position(i) == 0 && load_direction(i) == 0)
+                    return i-1;
+            }
+        }
+
+        int get_last_position(){
+            int longest_step = get_longest_step();
+            if(longest_step < 0)    return 0;
+            else                    return load_position(longest_step);
+        }
+
+        bool is_found_path(int x, int y){
+            int goal_pos = y * n_cols + x;
+            return (goal_pos == get_last_position());
+        }
+
     
     private:
         int n_rows;
         int n_cols;
+        int max_step;
 
 };
 
