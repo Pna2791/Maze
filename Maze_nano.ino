@@ -24,6 +24,11 @@ PDController forward_pid    = PDController(1, 0.1, FW_SPEED/2);
 PDController turn_pid       = PDController(0.65, 0.035, TURN_SPEED);
 Mazer my_mazer = Mazer(N_ROWS, N_COLS);
 
+Motor motor_left = Motor(left_A, left_E);
+Motor motor_right = Motor(right_A, right_B);
+Chassis dual_wheel = Chassis(motor_left, motor_right);
+
+
 int current_x = 0;
 int current_y = 0;
 int step_count = 0;
@@ -34,7 +39,6 @@ void setup() {
     setup_button();
     setup_encoder();
     setup_sensor();
-    setup_wheel();
     setup_pid_input();
 
     load_start_goal();
@@ -58,7 +62,7 @@ void test_forward(){
                 direction -= 3600;
 
             int forward_value = forward_pid.compute(global_dir, direction);
-            move_forward(forward_value, 0);
+            dual_wheel.move_forward(forward_value, 0);
         }
     }
 }
@@ -82,7 +86,7 @@ void test_rotate(int delta){
                 direction -= 3600;
 
             int turn_value = turn_pid.compute(global_dir, direction);
-            rotate_CCW(turn_value);
+            dual_wheel.rotate_CCW(turn_value);
         }
     }
 }
@@ -133,9 +137,9 @@ void turn_forward(int value=25, int n_step=1){
                 direction -= 3600;
 
             int forward_value = forward_pid.compute((global_dir+delta_dir), direction);
-            move_forward(forward_value, 0);
-            // if(next_checkpoint-encoderCount > 30)   move_forward(forward_value, 0);
-            // else                                    move_forward(forward_value, 64);
+            dual_wheel.move_forward(forward_value, 0);
+            // if(next_checkpoint-encoderCount > 30)   dual_wheel.move_forward(forward_value, 0);
+            // else                                    dual_wheel.move_forward(forward_value, 64);
         }
     }
 
@@ -146,7 +150,7 @@ void turn_forward(int value=25, int n_step=1){
 
     // Adjust direction
     global_dir = global_dir+delta_dir;
-    move_speed(-255);
+    dual_wheel.move_speed(-255);
     delay(25);
 }
 
@@ -173,7 +177,7 @@ void turn_CCW(int delta){
                 direction -= 3600;
 
             int turn_value = turn_pid.compute(global_dir, direction);
-            rotate_CCW(turn_value);
+            dual_wheel.rotate_CCW(turn_value);
         }
     }
 }
@@ -200,13 +204,13 @@ void left_wall_following(){
         global_dir_index = int(global_dir_index + 4 + 2)%4;
         turn_CCW(1800);
     }
-    stop_move();
+    dual_wheel.stop();
     step_count = my_mazer.add_step(global_dir_index, current_x, current_y, step_count);
     show_step_dir();
     step_count++;
 
     turn_forward(cell_size);
-    stop_move();
+    dual_wheel.stop();
 }
 
 
@@ -223,13 +227,13 @@ void right_wall_following(){
         global_dir_index = int(global_dir_index + 4 + 2)%4;
         turn_CCW(1800);
     }
-    stop_move();
+    dual_wheel.stop();
     step_count = my_mazer.add_step(global_dir_index, current_x, current_y, step_count);
     show_step_dir();
     step_count++;
 
     turn_forward(cell_size);
-    stop_move();
+    dual_wheel.stop();
 }
 
 
@@ -391,7 +395,7 @@ void test_menu(){
         global_dir = 0;
         turn_forward(300);
 
-        stop_move();
+        dual_wheel.stop();
     }
 }
 
@@ -432,7 +436,7 @@ void tracing_menu(){
             break;
         }
     }
-    stop_move();
+    dual_wheel.stop();
 }
 
 
@@ -451,11 +455,11 @@ void run_traced(int dir, int n_step=1){
     }else{
         turn_CCW(1800);
     }
-    stop_move();
+    dual_wheel.stop();
 
     turn_forward(cell_size*n_step, n_step);
     step_count += n_step;
-    stop_move();
+    dual_wheel.stop();
 }
 
 
@@ -543,7 +547,7 @@ void running_menu(){
         longest_step = step_count;
         update_longest_step();
     }
-    stop_move();
+    dual_wheel.stop();
 }
 
 
