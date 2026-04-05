@@ -2,16 +2,14 @@
 #define WHEEL_H
 
 
-#define left_A 6
-#define left_B 7
-#define left_E 5
+#define left_A 7
+#define left_E 6
 
-#define right_A 9
-#define right_B 8
-#define right_E 10
+#define right_A 13
+#define right_E 11
 
 
-#define FW_SPEED    180
+#define FW_SPEED    131
 #define TURN_SPEED  255
 
 
@@ -40,6 +38,8 @@ class Motor {
             } else {
                 digitalWrite(dir_pin, 1);
             }
+            // analogWrite(speed_pin, abs(val));
+            // return;
 
             if (abs(val) == 255) {
                 digitalWrite(speed_pin, 1);
@@ -60,10 +60,8 @@ class Chassis {
         Motor &right_motor;
 
     public: 
-        Chassis(Motor &left_motor, Motor &right_motor) {
-            this->left_motor = left_motor;
-            this->right_motor = right_motor; 
-        }
+        Chassis(Motor &left_motor, Motor &right_motor) 
+            : left_motor(left_motor), right_motor(right_motor){}
 
         void move_speed(int val){
             left_motor.setSpeed(val);
@@ -85,7 +83,7 @@ class Chassis {
                 right_motor.setSpeed(speed);
             }else if(delta > 0){
                 left_motor.setSpeed(speed-delta);
-                right_motor.setSpeed(speed);
+                right_motor.setSpeed(speed-5);
             }else{
                 left_motor.setSpeed(speed);
                 right_motor.setSpeed(speed+delta);

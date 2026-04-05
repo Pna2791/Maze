@@ -4,12 +4,12 @@
 #include "hi229.h"
 
 
-#define sensor_left     11
-#define sensor_front    12
+#define sensor_left     A1
+#define sensor_front    A2
 #define sensor_right    A0
 
-#define rear_left       A7
-#define rear_right      A6
+#define rear_left       8
+#define rear_right      10
 
 
 void setup_sensor(){

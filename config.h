@@ -8,16 +8,16 @@
 #define N_ROWS 14
 
 
-#define ENCODER_OFFSET  7
-#define safe_distance 13
+#define ENCODER_OFFSET  2
+#define safe_distance   15
 #define cell_size 26
 
 #define plush_per_cm 2
 
 
 #define btt_top A3
-#define btt_ent A2
-#define btt_bot A1
+#define btt_ent A6
+#define btt_bot A7
 
 
 void setup_button(){

@@ -8,6 +8,7 @@
 #include "wheel.h"
 #include "pid_control.h"
 #include "mazer.h"
+#include "encoder.h"
 
 
 #define SAFE_DISTANCE_MODE  1
@@ -20,12 +21,12 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 int global_dir = 0;
 int global_dir_index = 0;
-PDController forward_pid    = PDController(1, 0.1, FW_SPEED/2);
+PDController forward_pid    = PDController(3, 0.1, 2*FW_SPEED/3);
 PDController turn_pid       = PDController(0.65, 0.035, TURN_SPEED);
 Mazer my_mazer = Mazer(N_ROWS, N_COLS);
 
 Motor motor_left = Motor(left_A, left_E);
-Motor motor_right = Motor(right_A, right_B);
+Motor motor_right = Motor(right_A, right_E);
 Chassis dual_wheel = Chassis(motor_left, motor_right);
 
 
@@ -62,7 +63,7 @@ void test_forward(){
                 direction -= 3600;
 
             int forward_value = forward_pid.compute(global_dir, direction);
-            dual_wheel.move_forward(forward_value, 0);
+            dual_wheel.move_forward(forward_value);
         }
     }
 }
@@ -99,8 +100,9 @@ void turn_forward(int value=25, int n_step=1){
     bool stt_right = 0; // Right have wall
     int delta_dir   = 0;
     bool set_xxx = true;
-
-    while(long(encoderCount+ENCODER_OFFSET) < next_checkpoint){
+    long time_out = millis() + 900;
+    // while(long(encoderCount+ENCODER_OFFSET) < next_checkpoint){
+    while(millis() < time_out){
         int direction = get_direction();
         if(direction != 0xFFF){
             // Auto count if use SAFE_DISTANCE_MODE to avoid move to far from center
@@ -137,7 +139,7 @@ void turn_forward(int value=25, int n_step=1){
                 direction -= 3600;
 
             int forward_value = forward_pid.compute((global_dir+delta_dir), direction);
-            dual_wheel.move_forward(forward_value, 0);
+            dual_wheel.move_forward(forward_value);
             // if(next_checkpoint-encoderCount > 30)   dual_wheel.move_forward(forward_value, 0);
             // else                                    dual_wheel.move_forward(forward_value, 64);
         }
@@ -389,9 +391,17 @@ void test_menu(){
     }
 
     if(menu_mode == TEST_LINE_MODE){
-        delay(2000);
+        delay(1000);
+        // Serial.println("Start");
+        // dual_wheel.move_forward(0, 100);
+        // delay(2000);
+
+        // Serial.println("Stop");
+        // Serial.println(encoderCount);
+
         // test_forward();
         // test_rotate(1800);
+
         global_dir = 0;
         turn_forward(300);
 
@@ -552,15 +562,15 @@ void running_menu(){
 
 
 void handle_button(){
-    if(digitalRead(btt_top)){
+    if(analogRead(btt_top)>512){
         menu_mode++;
         show_menu();
     }
-    if(digitalRead(btt_bot)){
+    if(analogRead(btt_bot)>512){
         menu_mode = (menu_mode == 0) ? RESET_IMU_MODE : menu_mode - 1;
         show_menu();
     }
-    if(digitalRead(btt_ent)){
+    if(analogRead(btt_ent)>512){
         if(SET_START_X <= menu_mode && menu_mode <= SET_GOAL_Y)
             set_start_end_point();
 
