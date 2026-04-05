@@ -1,0 +1,103 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#include <Arduino.h>
+
+
+#define N_COLS 22
+#define N_ROWS 14
+
+
+#define ENCODER_OFFSET  2
+#define safe_distance   15
+#define cell_size 26
+
+#define plush_per_cm 2
+
+
+#define btt_top A3
+#define btt_ent A6
+#define btt_bot A7
+
+
+void setup_button(){
+    pinMode(btt_top, INPUT_PULLUP);
+    pinMode(btt_ent, INPUT_PULLUP);
+    pinMode(btt_bot, INPUT_PULLUP);
+}
+
+
+#define EEPROM_START_X  0
+#define EEPROM_START_Y  1
+#define EEPROM_GOAL_X   2
+#define EEPROM_GOAL_Y   3
+
+#define EEPROM_LOCKED   4
+#define EEPROM_LONGEST  5
+
+
+#define debounce_time 300
+
+
+byte start_x = 11;
+byte start_y = 14;
+byte goal_x = 11;
+byte goal_y = 0;
+
+bool locked_mode = 0;
+int longest_step = 0;
+
+
+void load_start_goal(){
+    start_x = EEPROM.read(EEPROM_START_X);
+    start_y = EEPROM.read(EEPROM_START_Y);
+    goal_x  = EEPROM.read(EEPROM_GOAL_X);
+    goal_y  = EEPROM.read(EEPROM_GOAL_Y);
+    locked_mode = (EEPROM.read(EEPROM_LOCKED) != 0);
+    longest_step = EEPROM.read(EEPROM_LONGEST);
+
+    Serial.print(F("locked_mode :"));
+    Serial.println(locked_mode);
+    // if(longest_step > 1)    longest_step--;
+}
+
+void update_locked_mode(){
+    if(locked_mode) EEPROM.update(EEPROM_LOCKED,  1);
+    else            EEPROM.update(EEPROM_LOCKED,  0);
+}
+
+void update_longest_step(){
+    EEPROM.update(EEPROM_LONGEST,  longest_step);
+}
+
+
+#define CHECKPOINT_1        3
+#define CHECKPOINT_2        10
+
+// MENU MODE
+int menu_mode = 0;
+#define N_MODES             15
+#define CHECKPOINT_LENGTH   20
+
+#define LEFT_RUN_0_MODE     0
+#define LEFT_RUN_1_MODE     2
+#define LEFT_RUN_2_MODE     4
+#define LEFT_TRACE_MODE     6
+
+#define RIGHT_RUN_0_MODE    1
+#define RIGHT_RUN_1_MODE    3
+#define RIGHT_RUN_2_MODE    5
+#define RIGHT_TRACE_MODE    7
+
+#define TEST_LINE_MODE      8
+#define RESET_IMU_MODE      9
+
+#define SET_START_X         10
+#define SET_START_Y         11
+#define SET_GOAL_X          12
+#define SET_GOAL_Y          13
+
+#define SET_LOCK_MODE       14
+
+
+#endif
